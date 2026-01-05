@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Export Tester (0.4) - 1080p (Robust)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=JetBrains+Mono&display=swap');
+        body { font-family: 'Inter', sans-serif; background: #020617; color: #f8fafc; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        /* Custom scrollbar for log */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col overflow-hidden">
+
+    <!-- PREVIEW AREA -->
+    <div class="h-[45vh] lg:h-[60vh] flex items-center justify-center p-4 bg-black/40 border-b border-white/5">
+        <div class="relative w-full max-w-3xl aspect-video glass rounded-xl overflow-hidden shadow-2xl transition-all duration-500" id="previewContainer">
+            <canvas id="renderCanvas" width="1920" height="1080" class="w-full h-full object-contain bg-black"></canvas>
+            
+            <div class="absolute top-3 left-3 flex gap-2">
+                <div class="px-2 py-1 bg-black/60 rounded text-[10px] font-mono border border-white/10">
+                    FRAME: <span id="frameCounter" class="text-sky-400">0</span>
+                </div>
+                <div id="statusBadge" class="px-2 py-1 bg-green-500/20 text-green-400 rounded text-[10px] font-mono border border-green-500/20 uppercase">
+                    Idle
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONTROL PANEL -->
+    <div class="flex-1 overflow-y-auto no-scrollbar p-6 space-y-6">
+        <div class="max-w-4xl mx-auto space-y-6">
+            
+            <!-- SETTINGS ROW -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="glass p-3 rounded-lg space-y-1">
+                    <label class="text-[10px] text-slate-400 uppercase font-bold">Resolution</label>
+                    <select id="settingRes" class="w-full bg-black/30 border border-white/10 rounded px-2 py-1 text-xs text-sky-400 focus:outline-none focus:border-sky-500">
+                        <option value="1920x1080">1920x1080 (16:9)</option>
+                        <option value="1080x1920">1080x1920 (9:16)</option>
+                        <option value="1080x1080">1080x1080 (1:1)</option>
+                        <option value="1280x720">1280x720 (16:9)</option>
+                    </select>
+                </div>
+                <div class="glass p-3 rounded-lg space-y-1">
+                    <label class="text-[10px] text-slate-400 uppercase font-bold">Frame Rate</label>
+                    <select id="settingFPS" class="w-full bg-black/30 border border-white/10 rounded px-2 py-1 text-xs text-sky-400 focus:outline-none focus:border-sky-500">
+                        <option value="30">30 FPS</option>
+                        <option value="60">60 FPS</option>
+                        <option value="24">24 FPS</option>
+                    </select>
+                </div>
+                <div class="glass p-3 rounded-lg space-y-1">
+                    <label class="text-[10px] text-slate-400 uppercase font-bold">Duration (s)</label>
+                    <input type="number" id="settingDur" value="5" min="1" max="60" class="w-full bg-black/30 border border-white/10 rounded px-2 py-1 text-xs text-sky-400 focus:outline-none focus:border-sky-500">
+                </div>
+                 <div class="glass p-3 rounded-lg flex items-end">
+                    <button id="applySettings" class="w-full bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold py-1.5 rounded transition-colors">Apply Config</button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <button id="btn-mp4" class="p-4 glass hover:bg-sky-500/10 border-sky-500/30 transition-all rounded-xl text-left group relative overflow-hidden">
+                    <div class="absolute inset-0 bg-sky-500/5 group-hover:bg-sky-500/10 transition-colors"></div>
+                    <div class="relative">
+                        <div class="text-sky-400 text-xs font-bold uppercase mb-1">Method A</div>
+                        <div class="font-bold">MP4 (Smart)</div>
+                        <div class="text-[10px] text-slate-400 mt-2">Native H.264 if available, otherwise falls back to FFmpeg.</div>
+                    </div>
+                </button>
+
+                <button id="btn-webm" class="p-4 glass hover:bg-indigo-500/10 border-indigo-500/30 transition-all rounded-xl text-left relative overflow-hidden">
+                    <div class="absolute inset-0 bg-indigo-500/5 hover:bg-indigo-500/10 transition-colors"></div>
+                    <div class="relative">
+                        <div class="text-indigo-400 text-xs font-bold uppercase mb-1">Method B</div>
+                        <div class="font-bold">WebM (Native)</div>
+                        <div class="text-[10px] text-slate-400 mt-2">WebCodecs + VP9. Fast & High Quality.</div>
+                    </div>
+                </button>
+
+                <button id="btn-ffmpeg" class="p-4 glass hover:bg-pink-500/10 border-pink-500/30 transition-all rounded-xl text-left relative overflow-hidden">
+                    <div class="absolute inset-0 bg-pink-500/5 hover:bg-pink-500/10 transition-colors"></div>
+                    <div class="relative">
+                        <div class="text-pink-400 text-xs font-bold uppercase mb-1">Method C</div>
+                        <div class="font-bold">MP4 (Software)</div>
+                        <div class="text-[10px] text-slate-400 mt-2">Force FFmpeg. Slower but 100% reliable.</div>
+                    </div>
+                </button>
+            </div>
+
+            <div class="glass rounded-xl p-4 space-y-2">
+                <div class="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase">
+                    <span>System Log</span>
+                    <div class="flex gap-2">
+                         <button id="clearLog" class="text-xs text-slate-500 hover:text-white">Clear</button>
+                         <button id="playBtn" class="text-sky-400 hover:text-sky-300 transition-colors">Pause/Resume</button>
+                    </div>
+                </div>
+                <div id="log" class="font-mono text-[10px] text-slate-400 h-32 overflow-y-auto space-y-1 p-2 bg-black/20 rounded select-text">
+                    <div>> System ready.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- OVERLAY -->
+    <div id="exportOverlay" class="fixed inset-0 bg-slate-950/95 backdrop-blur-xl z-50 flex flex-col items-center justify-center hidden">
+        <div class="w-64 space-y-6 text-center">
+            <div id="exportTitle" class="text-xl font-bold tracking-tight">Encoding...</div>
+            <div class="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                <div id="exportProgress" class="h-full bg-sky-500 w-0 transition-all duration-100"></div>
+            </div>
+            <div id="exportLog" class="text-[10px] font-mono text-slate-500 uppercase tracking-widest">Processing Frames</div>
+        </div>
+    </div>
+
+    <script type="module">
+        // --- 1. SETUP & STATE ---
+        const canvas = document.getElementById('renderCanvas');
+        const ctx = canvas.getContext('2d', { alpha: false });
+        
+        // Config State
+        let config = {
+            width: 1920,
+            height: 1080,
+            fps: 30,
+            duration: 5,
+            totalFrames: 150
+        };
+
+        const state = { frame: 0, isPlaying: true, isExporting: false };
+
+        function updateConfig() {
+            const resVal = document.getElementById('settingRes').value;
+            const [w, h] = resVal.split('x').map(Number);
+            const fps = parseInt(document.getElementById('settingFPS').value);
+            const dur = parseInt(document.getElementById('settingDur').value);
+
+            config.width = w;
+            config.height = h;
+            config.fps = fps;
+            config.duration = dur;
+            config.totalFrames = fps * dur;
+
+            // Update Canvas
+            canvas.width = w;
+            canvas.height = h;
+            
+            // Update CSS Aspect Ratio for preview container
+            const aspect = w / h;
+            const container = document.getElementById('previewContainer');
+            if (aspect < 1) {
+                 // Portrait
+                 container.classList.remove('aspect-video');
+                 container.style.aspectRatio = `${w}/${h}`;
+                 container.style.height = '70vh';
+                 container.style.width = 'auto';
+            } else {
+                 // Landscape/Square
+                 container.classList.add('aspect-video');
+                 container.style.aspectRatio = `${w}/${h}`;
+                 container.style.height = null;
+                 container.style.width = '100%';
+            }
+
+            logEvent(`Config updated: ${w}x${h} @ ${fps}fps (${dur}s)`);
+            state.frame = 0;
+        }
+
+        function logEvent(msg) {
+            const el = document.getElementById('log');
+            const div = document.createElement('div');
+            div.textContent = `> ${msg}`;
+            el.appendChild(div);
+            el.scrollTop = el.scrollHeight;
+        }
+
+        // --- 2. RENDER ENGINE ---
+        function render(frame, c, w, h) {
+            const t = frame / config.fps;
+            
+            // Reset transforms
+            c.setTransform(1, 0, 0, 1, 0, 0);
+
+            // Background
+            c.fillStyle = '#020617';
+            c.fillRect(0, 0, w, h);
+
+            // Animated Grid
+            c.strokeStyle = '#1e293b';
+            c.lineWidth = 2;
+            const offset = (t * 50) % 100;
+            c.beginPath();
+            for(let x = offset; x < w; x += 100) { c.moveTo(x, 0); c.lineTo(x, h); }
+            for(let y = offset; y < h; y += 100) { c.moveTo(0, y); c.lineTo(w, y); }
+            c.stroke();
+
+            // Central Shape
+            const pulse = 1 + Math.sin(t * 2) * 0.1;
+            c.save();
+            c.translate(w/2, h/2);
+            c.rotate(t * 0.5);
+            c.fillStyle = '#38bdf8';
+            c.shadowBlur = 40;
+            c.shadowColor = '#38bdf8';
+            
+            c.beginPath();
+            const minDim = Math.min(w, h);
+            const size = (minDim * 0.3) * pulse;
+            c.rect(-size/2, -size/2, size, size);
+            c.fill();
+            c.restore();
+
+            // Text
+            const fontSizeTitle = Math.floor(Math.min(w, h) * 0.08);
+            const fontSizeSub = Math.floor(Math.min(w, h) * 0.03);
+
+            c.shadowBlur = 0;
+            c.fillStyle = 'white';
+            c.textAlign = 'center';
+            c.font = `bold ${fontSizeTitle}px Inter, sans-serif`;
+            c.fillText("EXPORT TEST", w/2, h/2);
+            
+            c.font = `${fontSizeSub}px JetBrains Mono, monospace`;
+            c.fillStyle = '#94a3b8';
+            c.fillText(`${frame} / ${config.totalFrames} | ${t.toFixed(2)}s | ${w}x${h}`, w/2, h/2 + fontSizeTitle);
+        }
+
+        function loop() {
+            if (state.isExporting) {
+                requestAnimationFrame(loop);
+                return;
+            }
+
+            if (state.isPlaying) {
+                state.frame = (state.frame + 1) % config.totalFrames;
+                document.getElementById('frameCounter').textContent = state.frame;
+            }
+            render(state.frame, ctx, config.width, config.height);
+            requestAnimationFrame(loop);
+        }
+
+        // --- 3. EXPORT LOGIC ---
+        const startExport = async (method) => {
+            if (!window.isSecureContext) {
+                logEvent("ERROR: Secure context (HTTPS) required.");
+                alert("This feature requires HTTPS or Localhost.");
+                return;
+            }
+
+            if (method !== 'ffmpeg' && typeof VideoEncoder === 'undefined') {
+                logEvent("Browser missing WebCodecs. Forcing FFmpeg fallback.");
+                method = 'ffmpeg';
+            }
+
+            state.isExporting = true;
+            const overlay = document.getElementById('exportOverlay');
+            const progress = document.getElementById('exportProgress');
+            const logMsg = document.getElementById('exportLog');
+            const badge = document.getElementById('statusBadge');
+
+            overlay.classList.remove('hidden');
+            badge.textContent = "Exporting";
+            badge.className = "px-2 py-1 bg-amber-500/20 text-amber-400 rounded text-[10px] font-mono border border-amber-500/20 uppercase";
+            
+            logEvent(`Initializing ${method.toUpperCase()} export (${config.width}x${config.height} @ ${config.fps})...`);
+
+            try {
+                if (method === 'ffmpeg') {
+                    await runFFmpeg(progress, logMsg);
+                } else {
+                    await runWebCodecs(method, progress, logMsg);
+                }
+                logEvent(`SUCCESS: ${method} export completed.`);
+            } catch (err) {
+                // FALLBACK LOGIC
+                if (err.message === 'H.264_UNSUPPORTED') {
+                     logEvent("Native H.264 failed. Switching to FFmpeg (Software Encode)...");
+                     try {
+                         await runFFmpeg(progress, logMsg);
+                         logEvent("SUCCESS: MP4 export saved via FFmpeg.");
+                     } catch (retryErr) {
+                         logEvent(`CRITICAL ERROR: ${retryErr.message}`);
+                         console.error(retryErr);
+                     }
+                } else {
+                    logEvent(`CRITICAL ERROR: ${err.message}`);
+                    console.error(err);
+                }
+            } finally {
+                overlay.classList.add('hidden');
+                state.isExporting = false;
+                badge.textContent = "Idle";
+                badge.className = "px-2 py-1 bg-green-500/20 text-green-400 rounded text-[10px] font-mono border border-green-500/20 uppercase";
+            }
+        };
+
+        async function runWebCodecs(format, bar, log) {
+            let Muxer, ArrayBufferTarget;
+            
+            let selectedCodec = null;
+            if (format === 'mp4') {
+                // Expanded candidate list for better compatibility
+                const candidates = [
+                    'avc1.42E01E', // Constrained Baseline 3.0
+                    'avc1.42401E', // Constrained Baseline Generic
+                    'avc1.4d001E', // Main
+                    'avc1.64001E', // High
+                    'avc1.42001E'  // Baseline
+                ];
+                
+                log.textContent = "Negotiating Codec...";
+                for (const c of candidates) {
+                    try {
+                        const support = await VideoEncoder.isConfigSupported({
+                            codec: c, width: config.width, height: config.height, bitrate: 6_000_000, framerate: config.fps
+                        });
+                        if (support.supported) {
+                            selectedCodec = c;
+                            logEvent(`Native Codec: ${c}`);
+                            break;
+                        }
+                    } catch (e) {}
+                }
+                if (!selectedCodec) throw new Error("H.264_UNSUPPORTED");
+            } else {
+                selectedCodec = 'vp09.00.10.08';
+            }
+
+            log.textContent = "Loading Libraries...";
+            try {
+                if (format === 'mp4') {
+                    const mod = await import('https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.0/+esm');
+                    Muxer = mod.Muxer;
+                    ArrayBufferTarget = mod.ArrayBufferTarget;
+                } else {
+                    const mod = await import('https://cdn.jsdelivr.net/npm/webm-muxer@5.0.2/+esm');
+                    Muxer = mod.Muxer;
+                    ArrayBufferTarget = mod.ArrayBufferTarget;
+                }
+            } catch (e) {
+                throw new Error(`Failed to load Muxer libraries.`);
+            }
+
+            let muxer;
+            if (format === 'mp4') {
+                muxer = new Muxer({
+                    target: new ArrayBufferTarget(),
+                    video: { codec: 'avc', width: config.width, height: config.height },
+                    fastStart: 'in-memory'
+                });
+            } else {
+                muxer = new Muxer({
+                    target: new ArrayBufferTarget(),
+                    video: { codec: 'V_VP9', width: config.width, height: config.height }
+                });
+            }
+
+            const encoder = new VideoEncoder({
+                output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+                error: (e) => logEvent(`Encoder Error: ${e.message}`)
+            });
+
+            encoder.configure({
+                codec: selectedCodec,
+                width: config.width, height: config.height, bitrate: 6_000_000, framerate: config.fps
+            });
+
+            for (let i = 0; i < config.totalFrames; i++) {
+                render(i, ctx, config.width, config.height);
+                const frame = new VideoFrame(canvas, { timestamp: (i * 1_000_000) / config.fps });
+                encoder.encode(frame, { keyFrame: i % 60 === 0 });
+                frame.close();
+
+                bar.style.width = `${(i / config.totalFrames) * 100}%`;
+                log.textContent = `Encoding ${i}/${config.totalFrames}`;
+                if (i % 5 === 0) await new Promise(r => setTimeout(r, 0));
+            }
+
+            await encoder.flush();
+            muxer.finalize();
+            download(muxer.target.buffer, `export_${format}.${format}`, `video/${format}`);
+        }
+
+        async function runFFmpeg(bar, log) {
+            log.textContent = "Initializing FFmpeg...";
+            
+            // Helper to fetch text and create Blob URL (Bypasses Worker CORS)
+            const loadScriptAsBlob = async (url) => {
+                const resp = await fetch(url);
+                if (!resp.ok) throw new Error(`Fetch failed: ${url}`);
+                const text = await resp.text();
+                const blob = new Blob([text], { type: 'application/javascript' });
+                return URL.createObjectURL(blob);
+            };
+
+            const getBlobURL = async (url, type) => {
+                const resp = await fetch(url);
+                const blob = await resp.blob();
+                return URL.createObjectURL(blob);
+            };
+
+            try {
+                // 1. Load UMD FFmpeg script via Blob URL injection
+                if (!window.FFmpeg) {
+                    const ffmpegScriptUrl = 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.7/dist/umd/ffmpeg.min.js';
+                    const blobUrl = await loadScriptAsBlob(ffmpegScriptUrl);
+                    
+                    await new Promise((resolve, reject) => {
+                        const script = document.createElement('script');
+                        script.src = blobUrl;
+                        script.onload = resolve;
+                        script.onerror = reject;
+                        document.body.appendChild(script);
+                    });
+                }
+
+                const { FFmpeg } = window.FFmpegWASM; // UMD usually exposes FFmpegWASM or FFmpeg
+                // Note: CDN UMD usually exposes `FFmpeg` global
+                const ffmpegInstance = new window.FFmpegWASM.FFmpeg();
+
+                const baseURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm';
+                
+                log.textContent = "Fetching Core...";
+                const coreURL = await getBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
+                const wasmURL = await getBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm');
+
+                await ffmpegInstance.load({
+                    coreURL: coreURL,
+                    wasmURL: wasmURL,
+                });
+
+                log.textContent = "Capturing frames...";
+                for (let i = 0; i < config.totalFrames; i++) {
+                    render(i, ctx, config.width, config.height);
+                    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.8));
+                    const buf = await blob.arrayBuffer();
+                    await ffmpegInstance.writeFile(`f_${i}.jpg`, new Uint8Array(buf));
+                    
+                    bar.style.width = `${(i / config.totalFrames) * 50}%`;
+                    if (i % 10 === 0) await new Promise(r => setTimeout(r, 0));
+                }
+
+                log.textContent = "Stitching Video...";
+                await ffmpegInstance.exec([
+                    '-framerate', `${config.fps}`, 
+                    '-i', 'f_%d.jpg', 
+                    '-c:v', 'libx264', 
+                    '-pix_fmt', 'yuv420p', 
+                    'out.mp4'
+                ]);
+                
+                const data = await ffmpegInstance.readFile('out.mp4');
+                download(data.buffer, 'export_ffmpeg.mp4', 'video/mp4');
+
+            } catch (e) {
+                throw new Error("FFmpeg Failed: " + e.message);
+            }
+        }
+
+        function download(buf, name, type) {
+            const blob = new Blob([buf], { type });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = name;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // --- 4. INIT ---
+        document.getElementById('btn-mp4').onclick = () => startExport('mp4');
+        document.getElementById('btn-webm').onclick = () => startExport('webm');
+        document.getElementById('btn-ffmpeg').onclick = () => startExport('ffmpeg');
+        document.getElementById('playBtn').onclick = () => state.isPlaying = !state.isPlaying;
+        document.getElementById('applySettings').onclick = updateConfig;
+        document.getElementById('clearLog').onclick = () => { document.getElementById('log').innerHTML = '<div>> Log cleared.</div>'; };
+
+        // Initial Config Apply
+        updateConfig();
+        loop(); 
+    </script>
+</body>
+</html>
