@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvas Pro Animator (Ultimate)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=JetBrains+Mono&display=swap');
+        body { font-family: 'Inter', sans-serif; background: #020617; color: #f8fafc; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1); }
+        
+        /* Smooth Scrolling */
+        html { scroll-behavior: smooth; }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- STICKY PREVIEW AREA -->
+    <div class="sticky top-0 z-50 bg-[#020617]/90 backdrop-blur-md border-b border-white/10 shadow-2xl">
+        <div class="h-[35vh] lg:h-[50vh] flex items-center justify-center p-2 lg:p-4">
+            <div class="relative h-full aspect-video glass rounded-xl overflow-hidden shadow-2xl transition-all duration-500" id="previewContainer">
+                <canvas id="renderCanvas" width="1920" height="1080" class="w-full h-full object-contain bg-black"></canvas>
+                
+                <div class="absolute top-3 left-3 flex gap-2">
+                    <div class="px-2 py-1 bg-black/60 rounded text-[10px] font-mono border border-white/10">
+                        FRAME: <span id="frameCounter" class="text-sky-400">0</span>
+                    </div>
+                    <div id="statusBadge" class="px-2 py-1 bg-green-500/20 text-green-400 rounded text-[10px] font-mono border border-green-500/20 uppercase">
+                        Idle
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONTROL PANEL -->
+    <div class="flex-1 p-4 lg:p-8 space-y-8 pb-20">
+        <div class="max-w-6xl mx-auto space-y-8">
+            
+            <!-- ROW 1: CONFIGURATION -->
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                <div class="glass p-2 rounded-lg space-y-1">
+                    <label class="text-[10px] text-slate-400 uppercase font-bold">Animation</label>
+                    <select id="settingAnim" class="w-full bg-black/30 border border-white/10 rounded px-2 py-1 text-xs text-sky-400 focus:outline-none focus:border-sky-500">
+                        <option value="default">1. Pulse Grid</option>
+                        <option value="neon">2. Neon Road</option>
+                        <option value="matrix">3. Data Rain</option>
+                        <option value="swirl">4. Particle Swirl</option>
+                        <option value="wave">5. Audio Wave</option>
+                    </select>
+                </div>
+                <div class="glass p-2 rounded-lg space-y-1">
+                    <label class="text-[10px] text-slate-400 uppercase font-bold">Resolution</label>
+                    <select id="settingRes" class="w-full bg-black/30 border border-white/10 rounded px-2 py-1 text-xs text-sky-400 focus:outline-none focus:border-sky-500">
+                        <option value="1920x1080">1920x1080 (16:9)</option>
+                        <option value="1080x1920">1080x1920 (9:16)</option>
+                        <option value="1080x1080">1080x1080 (1:1)</option>
+                    </select>
+                </div>
+                <div class="glass p-2 rounded-lg space-y-1">
+                    <label class="text-[10px] text-slate-400 uppercase font-bold">FPS</label>
+                    <select id="settingFPS" class="w-full bg-black/30 border border-white/10 rounded px-2 py-1 text-xs text-sky-400 focus:outline-none focus:border-sky-500">
+                        <option value="30">30</option>
+                        <option value="60">60</option>
+                        <option value="24">24</option>
+                    </select>
+                </div>
+                <div class="glass p-2 rounded-lg space-y-1">
+                    <label class="text-[10px] text-slate-400 uppercase font-bold">Duration (s)</label>
+                    <input type="number" id="settingDur" value="5" min="1" max="60" class="w-full bg-black/30 border border-white/10 rounded px-2 py-1 text-xs text-sky-400 focus:outline-none focus:border-sky-500">
+                </div>
+                <div class="glass p-2 rounded-lg space-y-1">
+                    <label class="text-[10px] text-slate-400 uppercase font-bold">Filename</label>
+                    <input type="text" id="settingName" value="my_animation" class="w-full bg-black/30 border border-white/10 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-sky-500">
+                </div>
+                 <div class="glass p-2 rounded-lg flex items-end">
+                    <button id="applySettings" class="w-full bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold py-1.5 rounded transition-colors h-full">Apply Config</button>
+                </div>
+            </div>
+
+            <!-- ROW 2: EXPORT METHODS (SCROLLABLE) -->
+            <div class="glass p-4 rounded-xl border-t-2 border-sky-500/20">
+                <div class="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest flex justify-between">
+                    <span>Export Pipelines</span>
+                    <span class="text-xs text-sky-400 opacity-70">← Scroll for more →</span>
+                </div>
+                <div class="flex gap-3 overflow-x-auto pb-4 snap-x">
+                    
+                    <!-- Method A -->
+                    <button id="btn-mp4" class="snap-start min-w-[200px] flex-1 p-4 glass hover:bg-sky-500/10 border-sky-500/30 transition-all rounded-xl text-left relative overflow-hidden group">
+                        <div class="absolute inset-0 bg-sky-500/5 group-hover:bg-sky-500/10 transition-colors"></div>
+                        <div class="relative">
+                            <div class="text-sky-400 text-xs font-bold uppercase mb-1">Method A</div>
+                            <div class="font-bold whitespace-nowrap">MP4 (Smart)</div>
+                            <div class="text-[10px] text-slate-400 mt-2 leading-tight">Native WebCodecs via Worker. Best Quality.</div>
+                        </div>
+                    </button>
+
+                    <!-- Method B -->
+                    <button id="btn-webm" class="snap-start min-w-[200px] flex-1 p-4 glass hover:bg-indigo-500/10 border-indigo-500/30 transition-all rounded-xl text-left relative overflow-hidden group">
+                        <div class="absolute inset-0 bg-indigo-500/5 group-hover:bg-indigo-500/10 transition-colors"></div>
+                        <div class="relative">
+                            <div class="text-indigo-400 text-xs font-bold uppercase mb-1">Method B</div>
+                            <div class="font-bold whitespace-nowrap">WebM (Native)</div>
+                            <div class="text-[10px] text-slate-400 mt-2 leading-tight">VP9 Codec via Worker. Fast & Open.</div>
+                        </div>
+                    </button>
+
+                    <!-- Method C -->
+                    <button id="btn-ffmpeg" class="snap-start min-w-[200px] flex-1 p-4 glass hover:bg-pink-500/10 border-pink-500/30 transition-all rounded-xl text-left relative overflow-hidden group">
+                        <div class="absolute inset-0 bg-pink-500/5 group-hover:bg-pink-500/10 transition-colors"></div>
+                        <div class="relative">
+                            <div class="text-pink-400 text-xs font-bold uppercase mb-1">Method C</div>
+                            <div class="font-bold whitespace-nowrap">MP4 (Software)</div>
+                            <div class="text-[10px] text-slate-400 mt-2 leading-tight">FFmpeg WASM. Slow but 100% Reliable.</div>
+                        </div>
+                    </button>
+
+                    <!-- Method D -->
+                    <button id="btn-bunny" class="snap-start min-w-[200px] flex-1 p-4 glass hover:bg-amber-500/10 border-amber-500/30 transition-all rounded-xl text-left relative overflow-hidden group">
+                        <div class="absolute inset-0 bg-amber-500/5 group-hover:bg-amber-500/10 transition-colors"></div>
+                        <div class="relative">
+                            <div class="text-amber-400 text-xs font-bold uppercase mb-1">Method D</div>
+                            <div class="font-bold whitespace-nowrap">Media Bunny</div>
+                            <div class="text-[10px] text-slate-400 mt-2 leading-tight">Simulated High-Speed Recorder.</div>
+                        </div>
+                    </button>
+
+                    <!-- Method E -->
+                    <button id="btn-realtime" class="snap-start min-w-[200px] flex-1 p-4 glass hover:bg-emerald-500/10 border-emerald-500/30 transition-all rounded-xl text-left relative overflow-hidden group">
+                        <div class="absolute inset-0 bg-emerald-500/5 group-hover:bg-emerald-500/10 transition-colors"></div>
+                        <div class="relative">
+                            <div class="text-emerald-400 text-xs font-bold uppercase mb-1">Method E</div>
+                            <div class="font-bold whitespace-nowrap">Real-Time</div>
+                            <div class="text-[10px] text-slate-400 mt-2 leading-tight">Record live playback (WYSIWYG).</div>
+                        </div>
+                    </button>
+
+                </div>
+            </div>
+
+            <!-- LOG (Always Visible Now) -->
+            <div class="glass rounded-xl p-4 space-y-2">
+                <div class="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase">
+                    <span>System Log</span>
+                    <div class="flex gap-2">
+                         <button id="clearLog" class="text-xs text-slate-500 hover:text-white">Clear</button>
+                         <button id="playBtn" class="text-sky-400 hover:text-sky-300 transition-colors">Pause/Resume</button>
+                    </div>
+                </div>
+                <div id="log" class="font-mono text-[10px] text-slate-400 h-48 overflow-y-auto space-y-1 p-3 bg-black/20 rounded-lg select-text border border-white/5">
+                    <div>> System ready.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- OVERLAY -->
+    <div id="exportOverlay" class="fixed inset-0 bg-slate-950/95 backdrop-blur-xl z-[60] flex flex-col items-center justify-center hidden">
+        <div class="w-64 space-y-6 text-center">
+            <div id="exportTitle" class="text-xl font-bold tracking-tight">Encoding...</div>
+            <div class="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                <div id="exportProgress" class="h-full bg-sky-500 w-0 transition-all duration-100"></div>
+            </div>
+            <div id="exportLog" class="text-[10px] font-mono text-slate-500 uppercase tracking-widest">Processing Frames</div>
+            <button id="cancelExport" class="text-xs text-red-400 hover:text-red-300 border border-red-900 bg-red-950/50 px-3 py-1 rounded">Cancel</button>
+        </div>
+    </div>
+
+    <!-- WORKER SCRIPT -->
+    <script id="worker-code" type="javascript/worker">
+        const yieldToMain = () => new Promise(resolve => setTimeout(resolve, 0));
+
+        self.onmessage = async (e) => {
+            const { type, config, method, filename } = e.data;
+            if (type === 'start') {
+                try {
+                    if (method === 'ffmpeg') await runFFmpeg(config);
+                    else await runWebCodecs(method, config);
+                } catch (error) {
+                    self.postMessage({ type: 'error', message: error.message });
+                }
+            }
+        };
+
+        // --- SHARED ANIMATION ENGINE ---
+        function renderFrame(frame, c, w, h, fps, totalFrames, animType) {
+            const t = frame / fps;
+            c.setTransform(1, 0, 0, 1, 0, 0);
+            c.fillStyle = '#020617'; c.fillRect(0, 0, w, h);
+
+            if (animType === 'neon') {
+                c.fillStyle = '#1e1b4b'; c.fillRect(0,0,w,h);
+                c.strokeStyle = '#c026d3'; c.lineWidth = 2; c.beginPath();
+                for(let i=0; i<20; i++) {
+                    c.moveTo(0, h/2 + (i*40 + (t*100)%40)); c.lineTo(w, h/2 + (i*40 + (t*100)%40));
+                }
+                c.stroke();
+                c.fillStyle = '#facc15'; c.beginPath(); c.arc(w/2, h/3, 150, 0, Math.PI, true); c.fill();
+            } 
+            else if (animType === 'matrix') {
+                c.fillStyle = 'rgba(0,0,0,0.1)'; c.font = '20px monospace'; c.fillStyle = '#0f0';
+                for(let x=0; x<w; x+=30) c.fillText(String.fromCharCode(0x30A0 + Math.random()*96), x, (x * 3 + t * 400) % h);
+            }
+            else if (animType === 'swirl') {
+                for(let i=0; i<100; i++) {
+                    const ang = t + i; const rad = (i * 5) + Math.sin(t*3)*50;
+                    c.fillStyle = `hsl(${i*3}, 70%, 50%)`; c.beginPath(); 
+                    c.arc(w/2 + Math.cos(ang)*rad, h/2 + Math.sin(ang)*rad, 5, 0, Math.PI*2); c.fill();
+                }
+            }
+            else if (animType === 'wave') {
+                c.strokeStyle = '#38bdf8'; c.lineWidth = 5; c.beginPath();
+                for(let x=0; x<w; x+=10) c.lineTo(x, h/2 + Math.sin(x*0.01 + t*5) * 200 * Math.sin(t));
+                c.stroke();
+            }
+            else {
+                c.strokeStyle = '#1e293b'; c.lineWidth = 2; const offset = (t * 50) % 100; c.beginPath();
+                for(let x = offset; x < w; x += 100) { c.moveTo(x, 0); c.lineTo(x, h); }
+                for(let y = offset; y < h; y += 100) { c.moveTo(0, y); c.lineTo(w, y); }
+                c.stroke();
+                const pulse = 1 + Math.sin(t * 2) * 0.1;
+                c.save(); c.translate(w/2, h/2); c.rotate(t * 0.5); c.fillStyle = '#38bdf8'; c.shadowBlur = 40; c.shadowColor = '#38bdf8';
+                c.beginPath(); const minDim = Math.min(w, h); const size = (minDim * 0.3) * pulse; c.rect(-size/2, -size/2, size, size); c.fill(); c.restore();
+            }
+
+            const fontSizeTitle = Math.floor(Math.min(w, h) * 0.08);
+            c.shadowBlur = 0; c.fillStyle = 'white'; c.textAlign = 'center';
+            c.font = `bold ${fontSizeTitle}px Inter, sans-serif`; c.fillText(animType.toUpperCase(), w/2, h/2);
+            c.font = `20px JetBrains Mono, monospace`; c.fillStyle = '#94a3b8';
+            c.fillText(`${frame}/${totalFrames}`, w/2, h/2 + fontSizeTitle);
+        }
+
+        // --- METHOD A/B: WEBCODECS ---
+        async function runWebCodecs(format, config) {
+            let Muxer, ArrayBufferTarget;
+            self.postMessage({ type: 'log', message: `Worker loading ${format} libraries...` });
+
+            try {
+                if (format === 'mp4') {
+                    const mod = await import('https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.0/+esm');
+                    Muxer = mod.Muxer; ArrayBufferTarget = mod.ArrayBufferTarget;
+                } else {
+                    const mod = await import('https://cdn.jsdelivr.net/npm/webm-muxer@5.0.2/+esm');
+                    Muxer = mod.Muxer; ArrayBufferTarget = mod.ArrayBufferTarget;
+                }
+            } catch (e) { throw new Error("Library load failed."); }
+
+            let selectedCodec = null;
+            if (format === 'mp4') {
+                const candidates = [
+                    'avc1.42001E', // Baseline (Most Compatible)
+                    'avc1.42001f', // Baseline Alt
+                    'avc1.4d001E', // Main
+                    'avc1.64001E', // High
+                    'avc1.42E01E'  // Constrained Baseline
+                ];
+                for (const c of candidates) {
+                    try {
+                        const s = await VideoEncoder.isConfigSupported({ codec: c, width: config.width, height: config.height, bitrate: 6e6, framerate: config.fps });
+                        if (s.supported) { selectedCodec = c; break; }
+                    } catch (e) {}
+                }
+                if (!selectedCodec) throw new Error("H.264_UNSUPPORTED");
+            } else { selectedCodec = 'vp09.00.10.08'; }
+
+            let muxer;
+            if (format === 'mp4') muxer = new Muxer({ target: new ArrayBufferTarget(), video: { codec: 'avc', width: config.width, height: config.height } });
+            else muxer = new Muxer({ target: new ArrayBufferTarget(), video: { codec: 'V_VP9', width: config.width, height: config.height } });
+
+            const encoder = new VideoEncoder({
+                output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+                error: (e) => self.postMessage({ type: 'error', message: e.message })
+            });
+
+            encoder.configure({ codec: selectedCodec, width: config.width, height: config.height, bitrate: 6e6, framerate: config.fps });
+            const canvas = new OffscreenCanvas(config.width, config.height);
+            const ctx = canvas.getContext('2d', { alpha: false });
+
+            for (let i = 0; i < config.totalFrames; i++) {
+                if (encoder.encodeQueueSize > 5) await yieldToMain();
+
+                renderFrame(i, ctx, config.width, config.height, config.fps, config.totalFrames, config.animType);
+                const frame = new VideoFrame(canvas, { timestamp: (i * 1000000) / config.fps });
+                encoder.encode(frame, { keyFrame: i % 60 === 0 });
+                frame.close();
+
+                if (i % 10 === 0) {
+                     self.postMessage({ type: 'progress', percent: (i / config.totalFrames) * 100, text: `Encoding ${i}/${config.totalFrames}` });
+                     await yieldToMain();
+                }
+            }
+            await encoder.flush();
+            muxer.finalize();
+            self.postMessage({ type: 'complete', buffer: muxer.target.buffer, format: format });
+        }
+
+        // --- METHOD C: FFMPEG (ROBUST CORS & WORKER FIX) ---
+        async function runFFmpeg(config) {
+            self.postMessage({ type: 'log', message: "Init FFmpeg..." });
+            
+            // 1. SHIM DOCUMENT & WINDOW for UMD Compatibility
+            // This fixes the "document is not defined" error crashing FFmpeg inside Worker
+            if (typeof self.document === 'undefined') {
+                self.document = {
+                    createElement: () => ({}),
+                    createElementNS: () => ({}),
+                    head: { appendChild: () => {} },
+                    documentElement: {}
+                };
+            }
+            if (typeof self.window === 'undefined') self.window = self;
+
+            const loadBlob = async (url) => URL.createObjectURL(new Blob([await (await fetch(url)).text()], {type: 'text/javascript'}));
+            const getBlob = async (url) => URL.createObjectURL(await (await fetch(url)).blob());
+
+            try {
+                // Manual Load UMD
+                if (!self.FFmpegWASM) {
+                    const libUrl = await loadBlob('https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.7/dist/umd/ffmpeg.min.js');
+                    await import(libUrl);
+                }
+                
+                // 2. Access via global scope set by UMD
+                const { FFmpeg } = self.FFmpegWASM || self.FFmpeg; 
+                const ffmpeg = new FFmpeg();
+                
+                const base = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm';
+                await ffmpeg.load({ coreURL: await loadBlob(`${base}/ffmpeg-core.js`), wasmURL: await getBlob(`${base}/ffmpeg-core.wasm`) });
+
+                const canvas = new OffscreenCanvas(config.width, config.height);
+                const ctx = canvas.getContext('2d');
+
+                for (let i = 0; i < config.totalFrames; i++) {
+                    renderFrame(i, ctx, config.width, config.height, config.fps, config.totalFrames, config.animType);
+                    const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.8 });
+                    const buf = await blob.arrayBuffer();
+                    await ffmpeg.writeFile(`f_${i}.jpg`, new Uint8Array(buf));
+                    if (i % 10 === 0) {
+                        self.postMessage({ type: 'progress', percent: (i / config.totalFrames) * 50, text: `Capturing ${i}/${config.totalFrames}` });
+                        await yieldToMain();
+                    }
+                }
+                
+                self.postMessage({ type: 'log', message: "Stitching..." });
+                await ffmpeg.exec(['-framerate', `${config.fps}`, '-i', 'f_%d.jpg', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', 'out.mp4']);
+                const data = await ffmpeg.readFile('out.mp4');
+                self.postMessage({ type: 'complete', buffer: data.buffer, format: 'mp4' });
+            } catch (e) { throw new Error("FFmpeg Error: " + e.message); }
+        }
+    </script>
+
+    <!-- MAIN SCRIPT -->
+    <script type="module">
+        const canvas = document.getElementById('renderCanvas');
+        const ctx = canvas.getContext('2d', { alpha: false });
+        let activeWorker = null;
+        let mediaRecorder = null; // For Method E
+        
+        let config = { width: 1920, height: 1080, fps: 30, duration: 5, totalFrames: 150, animType: 'default', filename: 'video' };
+        const state = { frame: 0, isPlaying: true, isExporting: false };
+
+        function updateConfig() {
+            const resVal = document.getElementById('settingRes').value;
+            const [w, h] = resVal.split('x').map(Number);
+            const fps = parseInt(document.getElementById('settingFPS').value);
+            const dur = parseInt(document.getElementById('settingDur').value);
+            const anim = document.getElementById('settingAnim').value;
+            const fname = document.getElementById('settingName').value || 'video';
+
+            config = { width: w, height: h, fps, duration: dur, totalFrames: fps * dur, animType: anim, filename: fname };
+            canvas.width = w; canvas.height = h;
+            
+            const aspect = w / h;
+            const container = document.getElementById('previewContainer');
+            
+            // Aspect Ratio handling for preview
+            container.classList.remove('aspect-video'); 
+            container.style.height = ''; 
+            container.style.width = '';
+            
+            if (aspect > 1.7) { // 16:9 etc
+                container.classList.add('aspect-video');
+                container.style.width = '100%';
+            } else if (aspect < 1) { // 9:16
+                container.style.aspectRatio = `${w}/${h}`;
+                container.style.height = '100%'; 
+                container.style.maxHeight = '50vh';
+            } else { // 1:1
+                container.style.aspectRatio = '1/1';
+                container.style.height = '100%';
+                container.style.maxHeight = '50vh';
+            }
+
+            logEvent(`Config: ${anim.toUpperCase()} ${w}x${h} @ ${fps}fps (${dur}s)`);
+            state.frame = 0;
+        }
+
+        function logEvent(msg) {
+            const el = document.getElementById('log');
+            const div = document.createElement('div');
+            div.textContent = `> ${msg}`;
+            el.appendChild(div);
+            el.scrollTop = el.scrollHeight;
+        }
+
+        // --- MAIN THREAD RENDER ---
+        function render(frame, c, w, h) {
+            const t = frame / config.fps;
+            const animType = config.animType;
+            c.setTransform(1, 0, 0, 1, 0, 0);
+            c.fillStyle = '#020617'; c.fillRect(0, 0, w, h);
+
+            if (animType === 'neon') {
+                c.fillStyle = '#1e1b4b'; c.fillRect(0,0,w,h);
+                c.strokeStyle = '#c026d3'; c.lineWidth = 2; c.beginPath();
+                for(let i=0; i<20; i++) { c.moveTo(0, h/2 + (i*40 + (t*100)%40)); c.lineTo(w, h/2 + (i*40 + (t*100)%40)); }
+                c.stroke();
+                c.fillStyle = '#facc15'; c.beginPath(); c.arc(w/2, h/3, 150, 0, Math.PI, true); c.fill();
+            } else if (animType === 'matrix') {
+                c.fillStyle = 'rgba(0,0,0,0.1)'; c.font = '20px monospace'; c.fillStyle = '#0f0';
+                for(let x=0; x<w; x+=30) c.fillText(String.fromCharCode(0x30A0 + Math.random()*96), x, (x * 3 + t * 400) % h);
+            } else if (animType === 'swirl') {
+                for(let i=0; i<100; i++) {
+                    const ang = t + i; const rad = (i * 5) + Math.sin(t*3)*50;
+                    c.fillStyle = `hsl(${i*3}, 70%, 50%)`; c.beginPath(); c.arc(w/2 + Math.cos(ang)*rad, h/2 + Math.sin(ang)*rad, 5, 0, Math.PI*2); c.fill();
+                }
+            } else if (animType === 'wave') {
+                c.strokeStyle = '#38bdf8'; c.lineWidth = 5; c.beginPath();
+                for(let x=0; x<w; x+=10) c.lineTo(x, h/2 + Math.sin(x*0.01 + t*5) * 200 * Math.sin(t));
+                c.stroke();
+            } else {
+                c.strokeStyle = '#1e293b'; c.lineWidth = 2; const offset = (t * 50) % 100; c.beginPath();
+                for(let x = offset; x < w; x += 100) { c.moveTo(x, 0); c.lineTo(x, h); }
+                for(let y = offset; y < h; y += 100) { c.moveTo(0, y); c.lineTo(w, y); }
+                c.stroke();
+                const pulse = 1 + Math.sin(t * 2) * 0.1;
+                c.save(); c.translate(w/2, h/2); c.rotate(t * 0.5); c.fillStyle = '#38bdf8'; c.shadowBlur = 40; c.shadowColor = '#38bdf8';
+                c.beginPath(); const minDim = Math.min(w, h); const size = (minDim * 0.3) * pulse; c.rect(-size/2, -size/2, size, size); c.fill(); c.restore();
+            }
+            const fsT = Math.floor(Math.min(w, h) * 0.08);
+            c.shadowBlur = 0; c.fillStyle = 'white'; c.textAlign = 'center'; c.font = `bold ${fsT}px Inter, sans-serif`; c.fillText(animType.toUpperCase(), w/2, h/2);
+            c.font = `20px JetBrains Mono`; c.fillStyle = '#94a3b8'; c.fillText(`${frame}/${config.totalFrames} | ${t.toFixed(2)}s`, w/2, h/2 + fsT);
+        }
+
+        function loop() {
+            if (state.isPlaying) {
+                state.frame = (state.frame + 1) % config.totalFrames;
+                document.getElementById('frameCounter').textContent = state.frame;
+            }
+            render(state.frame, ctx, config.width, config.height);
+            requestAnimationFrame(loop);
+        }
+
+        const startWorkerExport = async (method) => {
+            if (!window.isSecureContext) { logEvent("HTTPS Required."); return; }
+            
+            const blob = new Blob([document.getElementById('worker-code').textContent], { type: "text/javascript" });
+            activeWorker = new Worker(URL.createObjectURL(blob));
+
+            state.isExporting = true; state.isPlaying = false;
+            toggleOverlay(true, "Worker Active");
+            logEvent(`Worker Job: ${method.toUpperCase()} (${config.width}x${config.height})...`);
+
+            activeWorker.onmessage = (e) => {
+                const { type, percent, text, message, buffer, format } = e.data;
+                if (type === 'progress') {
+                    document.getElementById('exportProgress').style.width = `${percent}%`;
+                    document.getElementById('exportLog').textContent = text;
+                } else if (type === 'log') logEvent(`[W] ${message}`);
+                else if (type === 'error') {
+                    if (message === 'H.264_UNSUPPORTED') {
+                        logEvent("Retrying with FFmpeg...");
+                        activeWorker.postMessage({ type: 'start', config, method: 'ffmpeg' });
+                    } else {
+                        logEvent(`ERROR: ${message}`);
+                        cleanup();
+                    }
+                } else if (type === 'complete') {
+                    logEvent("DONE.");
+                    download(buffer, `${config.filename}.${format}`, `video/${format}`);
+                    cleanup();
+                }
+            };
+            activeWorker.postMessage({ type: 'start', config, method });
+        };
+
+        const startFastExport = () => {
+             // Method D: Media Bunny (Main Thread MediaRecorder)
+             logEvent("Initializing Media Bunny (Fast)...");
+             state.isExporting = true;
+             state.isPlaying = false;
+             toggleOverlay(true, "Recording...");
+             
+             const recCanvas = document.createElement('canvas');
+             recCanvas.width = config.width; recCanvas.height = config.height;
+             const recCtx = recCanvas.getContext('2d');
+             
+             const stream = recCanvas.captureStream(config.fps);
+             const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+             const chunks = [];
+             
+             recorder.ondataavailable = e => chunks.push(e.data);
+             recorder.onstop = () => {
+                 const blob = new Blob(chunks, { type: 'video/webm' });
+                 download(blob, `${config.filename}_bunny.webm`, 'video/webm');
+                 logEvent("Media Bunny Export Saved.");
+                 cleanup();
+             };
+
+             recorder.start();
+             let frame = 0;
+             const process = () => {
+                 if (frame >= config.totalFrames) { recorder.stop(); return; }
+                 render(frame, recCtx, config.width, config.height);
+                 if (stream.requestFrame) stream.requestFrame();
+                 if (frame % 10 === 0) {
+                     const pct = (frame / config.totalFrames) * 100;
+                     document.getElementById('exportProgress').style.width = `${pct}%`;
+                     document.getElementById('exportLog').textContent = `Recording ${frame}/${config.totalFrames}`;
+                 }
+                 frame++;
+                 setTimeout(process, 0); 
+             };
+             process();
+        };
+
+        const startRealTimeExport = () => {
+             logEvent("Starting Real-Time Capture...");
+             state.isExporting = true; state.isPlaying = true; state.frame = 0; 
+             toggleOverlay(true, "Live Recording");
+             
+             const stream = canvas.captureStream(config.fps);
+             mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+             const chunks = [];
+             mediaRecorder.ondataavailable = e => chunks.push(e.data);
+             mediaRecorder.onstop = () => {
+                 download(new Blob(chunks, { type: 'video/webm' }), `${config.filename}_realtime.webm`, 'video/webm');
+                 logEvent("Real-Time Export Saved.");
+                 cleanup();
+             };
+             mediaRecorder.start();
+             setTimeout(() => { if (mediaRecorder.state === 'recording') mediaRecorder.stop(); }, (config.duration * 1000) + 200); 
+        };
+
+        function toggleOverlay(show, badgeText) {
+            const overlay = document.getElementById('exportOverlay');
+            const badge = document.getElementById('statusBadge');
+            if(show) {
+                overlay.classList.remove('hidden');
+                badge.textContent = badgeText;
+                badge.className = "px-2 py-1 bg-amber-500/20 text-amber-400 rounded text-[10px] font-mono border border-amber-500/20 uppercase";
+            } else {
+                overlay.classList.add('hidden');
+                badge.textContent = "Idle";
+                badge.className = "px-2 py-1 bg-green-500/20 text-green-400 rounded text-[10px] font-mono border border-green-500/20 uppercase";
+            }
+        }
+
+        function cleanup() {
+            if (activeWorker) activeWorker.terminate();
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+            activeWorker = null; state.isExporting = false; state.isPlaying = true;
+            toggleOverlay(false);
+        }
+
+        function download(blob, name, type) {
+            const b = blob instanceof Blob ? blob : new Blob([blob], { type });
+            const url = URL.createObjectURL(b);
+            const a = document.createElement('a');
+            a.href = url; a.download = name; a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        document.getElementById('btn-mp4').onclick = () => startWorkerExport('mp4');
+        document.getElementById('btn-webm').onclick = () => startWorkerExport('webm');
+        document.getElementById('btn-ffmpeg').onclick = () => startWorkerExport('ffmpeg');
+        document.getElementById('btn-bunny').onclick = startFastExport; 
+        document.getElementById('btn-realtime').onclick = startRealTimeExport;
+        document.getElementById('playBtn').onclick = () => state.isPlaying = !state.isPlaying;
+        document.getElementById('applySettings').onclick = updateConfig;
+        document.getElementById('clearLog').onclick = () => document.getElementById('log').innerHTML = '<div>> Log cleared.</div>';
+        document.getElementById('cancelExport').onclick = () => { logEvent("Cancelled."); cleanup(); };
+
+        updateConfig();
+        loop(); 
+    </script>
+</body>
+</html>
